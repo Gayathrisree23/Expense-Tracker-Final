@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expense Tracker ✨</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <button class="dark-toggle" onclick="toggleDark()">🌙 Dark Mode</button>
+    <div class="tag">✨ My Finance</div>
+    <h1>Expense Tracker</h1>
+    <p>Welcome back, <strong>{{ username }}</strong> 🌸</p>
+    <a href="/logout" class="logout-btn">🚪 Logout</a>
+  </div>
+
+  <!-- Month Selector -->
+  <div class="month-card">
+    <div class="month-top">
+      <h3>📅 View Period</h3>
+      <form action="/home" method="GET" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <select name="month" onchange="this.form.submit()" class="month-select">
+          {% for month in all_months %}
+          <option value="{{ month }}" {% if month == selected_month %}selected{% endif %}>
+            {{ format_month(month) }}
+          </option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="category" value="{{ selected }}">
+        <input type="hidden" name="search" value="{{ search }}">
+        <button type="submit" name="view" value="month" class="view-btn {% if view == 'month' %}active{% endif %}">
+          📅 This Month
+        </button>
+        <button type="submit" name="view" value="all" class="view-btn {% if view == 'all' %}active{% endif %}">
+          🌸 All Time
+        </button>
+      </form>
+    </div>
+
+    {% if monthly_summary %}
+    <div class="monthly-overview">
+      <div class="overview-title">📊 Monthly Overview</div>
+      <div class="overview-list">
+        {% for month, amount in monthly_summary.items() %}
+        <div class="overview-item">
+          <div class="overview-left">
+            <div class="overview-month">{{ format_month(month) }}</div>
+            <div class="overview-bar-bg">
+              <div class="overview-bar-fill" style="width: {% if monthly_summary.values()|max > 0 %}{{ ((amount / monthly_summary.values()|max) * 100)|round }}{% else %}0{% endif %}%"></div>
+            </div>
+          </div>
+          <div class="overview-amount">₹{{ amount }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Alert -->
+  {% if remaining < 0 %}
+  <div class="alert" style="background:#fde8e8;border-color:#e74c3c;color:#c0392b;">
+    🚨 You are <strong>₹{{ remaining|abs }}</strong> over your budget this month!
+  </div>
+  {% elif percent >= 80 %}
+  <div class="alert">
+    ⚠️ You've used <strong>{{ percent }}%</strong> of your budget! ₹{{ remaining }} remaining.
+  </div>
+  {% endif %}
+
+  <!-- Stats -->
+  <div class="stats-row five-cards">
+    <div class="stat-card">
+      <div class="emoji">💸</div>
+      <div class="value">₹{{ total }}</div>
+      <div class="label">Total Spent</div>
+    </div>
+    <div class="stat-card">
+      <div class="emoji">📋</div>
+      <div class="value">{{ count }}</div>
+      <div class="label">Expenses</div>
+    </div>
+    <div class="stat-card">
+      <div class="emoji">🏷️</div>
+      <div class="value">{{ top_category }}</div>
+      <div class="label">Top Category</div>
+    </div>
+    <div class="stat-card">
+      <div class="emoji">📈</div>
+      <div class="value">₹{{ highest }}</div>
+      <div class="label">Highest</div>
+    </div>
+    <div class="stat-card {% if balance_left < 0 %}over-budget{% endif %}">
+      <div class="emoji">{% if balance_left >= 0 %}💰{% else %}🚨{% endif %}</div>
+      <div class="value" style="{% if balance_left < 0 %}color:#e74c3c;{% endif %}">
+        {% if balance_left >= 0 %}₹{{ balance_left }}{% else %}-₹{{ balance_left|abs }}{% endif %}
+      </div>
+      <div class="label">{% if balance_left >= 0 %}Balance Left{% else %}Over Budget!{% endif %}</div>
+    </div>
+  </div>
+
+  <!-- Budget -->
+  <div class="budget-card">
+    <div class="budget-header">
+      <h3>💰 Monthly Budget</h3>
+      <span>₹{{ total }} / ₹{{ budget }}</span>
+    </div>
+    <div class="budget-bar-bg">
+      <div class="budget-bar-fill" style="width: {{ percent }}%;{% if remaining < 0 %}background:linear-gradient(90deg,#e74c3c,#c0392b);{% endif %}"></div>
+    </div>
+    <div class="budget-info">
+      <span>{{ percent }}% used</span>
+      <span style="{% if remaining < 0 %}color:#e74c3c;font-weight:600;{% endif %}">
+        {% if remaining >= 0 %}₹{{ remaining }} left{% else %}₹{{ remaining|abs }} over budget!{% endif %}
+      </span>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div class="form-card">
+    <h2>Add New Expense 🌸</h2>
+    <form action="/add" method="POST">
+      <div class="form-grid">
+        <input type="text" name="name" placeholder="Expense name..." required>
+        <input type="number" name="amount" placeholder="Amount ₹" required>
+      </div>
+      <div class="form-grid">
+        <select name="category">
+          <option value="Food">🍜 Food</option>
+          <option value="Transport">🚗 Transport</option>
+          <option value="Shopping">🛍️ Shopping</option>
+          <option value="Health">💊 Health</option>
+          <option value="Other">✨ Other</option>
+        </select>
+        <input type="date" name="date">
+      </div>
+      <button type="submit" class="btn-add">+ Add Expense</button>
+    </form>
+  </div>
+
+  <!-- Search + Filter -->
+  <div class="search-filter-row">
+    <div class="search-box">
+      <h3>🔍 Search</h3>
+      <form action="/home" method="GET">
+        <input type="hidden" name="category" value="{{ selected }}">
+        <input type="hidden" name="month" value="{{ selected_month }}">
+        <input type="hidden" name="view" value="{{ view }}">
+        <input type="text" name="search"
+               placeholder="Search expenses..."
+               value="{{ search }}"
+               onchange="this.form.submit()">
+      </form>
+    </div>
+    <div class="filter-box">
+      <h3>🏷️ Filter</h3>
+      <form action="/home" method="GET">
+        <input type="hidden" name="month" value="{{ selected_month }}">
+        <input type="hidden" name="view" value="{{ view }}">
+        <select name="category" onchange="this.form.submit()">
+          <option value="All" {% if selected == 'All' %}selected{% endif %}>All Categories</option>
+          <option value="Food" {% if selected == 'Food' %}selected{% endif %}>🍜 Food</option>
+          <option value="Transport" {% if selected == 'Transport' %}selected{% endif %}>🚗 Transport</option>
+          <option value="Shopping" {% if selected == 'Shopping' %}selected{% endif %}>🛍️ Shopping</option>
+          <option value="Health" {% if selected == 'Health' %}selected{% endif %}>💊 Health</option>
+          <option value="Other" {% if selected == 'Other' %}selected{% endif %}>✨ Other</option>
+        </select>
+      </form>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>🍩 Breakdown</h3>
+      <div class="donut-wrapper">
+        <canvas id="donutChart"></canvas>
+        <div class="donut-center">
+          <div class="total">₹{{ total }}</div>
+          <div class="lbl">Total</div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>📊 By Category</h3>
+      <canvas id="barChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Spending Breakdown -->
+  <div class="spending-card">
+    <h3>💜 Spending by Category</h3>
+    {% for cat, data in category_data.items() %}
+    <div class="category-item">
+      <div class="category-icon icon-{{ cat|lower }}">{{ data.icon }}</div>
+      <div class="category-info">
+        <div class="cat-name">{{ cat }}</div>
+        <div class="cat-transactions">{{ data.count }} transaction{% if data.count != 1 %}s{% endif %}</div>
+        <div class="progress-bg">
+          <div class="progress-fill fill-{{ cat|lower }}" style="width: {% if total > 0 %}{{ ((data.amount / total) * 100)|round }}{% else %}0{% endif %}%"></div>
+        </div>
+      </div>
+      <div class="cat-amount">₹{{ data.amount }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-header">
+      <h3>🧾 All Expenses</h3>
+      <a href="/export" class="export-btn">📁 Export CSV</a>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Amount</th>
+          <th>Category</th>
+          <th>Date</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for expense in expenses %}
+        <tr>
+          <td>{{ expense.name }}</td>
+          <td>₹{{ expense.amount }}</td>
+          <td><span class="category-badge badge-{{ expense.category }}">{{ expense.category }}</span></td>
+          <td>{{ expense.date | format_date if expense.date else '' }}</td>
+          <td>
+            <div class="action-btns">
+              <a href="/edit/{{ loop.index0 }}" class="btn-edit">✏️ Edit</a>
+              <a href="/delete/{{ loop.index0 }}" class="btn-delete">🗑️ Delete</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+  function toggleDark() {
+    document.body.classList.toggle('dark');
+    localStorage.setItem('dark', document.body.classList.contains('dark'));
+  }
+
+  if (localStorage.getItem('dark') === 'true') {
+    document.body.classList.add('dark');
+  }
+
+  const categoryData = {{ category_data | tojson }};
+  const labels = Object.keys(categoryData);
+  const amounts = labels.map(k => categoryData[k].amount);
+  const colors = ['#fde8c8','#c8fde8','#e8c8fd','#fdc8e8','#c8e8fd'];
+  const borders = ['#f0c090','#90f0c0','#c090f0','#f090c8','#90c0f0'];
+
+  new Chart(document.getElementById('donutChart'), {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: amounts,
+        backgroundColor: colors,
+        borderColor: borders,
+        borderWidth: 2,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      cutout: '70%',
+      animation: { animateRotate: true, duration: 1000 }
+    }
+  });
+
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: amounts,
+        backgroundColor: colors,
+        borderRadius: 8,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          grid: { color: '#f5e8e8' },
+          ticks: {
+            color: '#b89a9a',
+            font: { family: 'DM Sans', size: 11 },
+            callback: function(value) { return '₹' + value; }
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: '#b89a9a', font: { family: 'DM Sans', size: 11 } }
+        }
+      }
+    }
+  });
+</script>
+
+</body>
+</html>

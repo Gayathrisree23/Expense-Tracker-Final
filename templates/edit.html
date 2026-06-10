@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Expense ✨</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="container">
+  <div class="header">
+    <div class="tag">✨ My Finance</div>
+    <h1>Edit Expense</h1>
+    <p>Update your expense details 🌸</p>
+  </div>
+  <div class="form-card">
+    <h2>Edit Expense 🌸</h2>
+    <form action="/edit/{{ index }}" method="POST">
+      <div class="form-grid">
+        <input type="text" name="name" value="{{ expense.name }}" required>
+        <input type="number" name="amount" value="{{ expense.amount }}" required>
+      </div>
+      <div class="form-grid">
+        <select name="category">
+          <option value="Food" {% if expense.category == 'Food' %}selected{% endif %}>🍜 Food</option>
+          <option value="Transport" {% if expense.category == 'Transport' %}selected{% endif %}>🚗 Transport</option>
+          <option value="Shopping" {% if expense.category == 'Shopping' %}selected{% endif %}>🛍️ Shopping</option>
+          <option value="Health" {% if expense.category == 'Health' %}selected{% endif %}>💊 Health</option>
+          <option value="Other" {% if expense.category == 'Other' %}selected{% endif %}>✨ Other</option>
+        </select>
+        <input type="date" name="date" value="{{ expense.date }}">
+      </div>
+      <button type="submit" class="btn-add">💾 Save Changes</button>
+    </form>
+    <br>
+    <a href="/home" style="display:block;text-align:center;color:#b89a9a;font-size:13px;">← Back to Home</a>
+  </div>
+</div>
+</body>
+</html>
