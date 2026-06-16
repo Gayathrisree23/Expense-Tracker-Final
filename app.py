@@ -179,15 +179,8 @@ def delete(index):
         return redirect('/')
     username = session['username']
     all_expenses = get_expenses(username)
-    current_month = date.today().strftime('%Y-%m')
-    selected_month = request.args.get('month', current_month)
-    view = request.args.get('view', 'month')
-    if view == 'all':
-        filtered = all_expenses
-    else:
-        filtered = [e for e in all_expenses if e.get('date', '')[:7] == selected_month]
-    expense_to_delete = filtered[index]
-    all_expenses.remove(expense_to_delete)
+    if index < len(all_expenses):
+        all_expenses.pop(index)
     FILE = get_file(username)
     with open(FILE, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['name','amount','category','date'])
@@ -234,4 +227,3 @@ def export():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
-    
