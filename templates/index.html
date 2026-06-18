@@ -26,13 +26,15 @@
 
   <!-- Month Selector -->
   <div class="month-card">
-    <div class="month-top">
+    <div class="month-header">
       <h3>📅 View Period</h3>
-      <form action="/home" method="GET" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <select name="month" onchange="this.form.submit()" class="month-select">
+    </div>
+    <div class="month-controls">
+      <form action="/home" method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <select name="month" onchange="this.form.submit()">
           {% for month in all_months %}
           <option value="{{ month }}" {% if month == selected_month %}selected{% endif %}>
-            {{ format_month(month) }}
+            {{ month }}
           </option>
           {% endfor %}
         </select>
@@ -42,24 +44,23 @@
           📅 This Month
         </button>
         <button type="submit" name="view" value="all" class="view-btn {% if view == 'all' %}active{% endif %}">
-          🌸 All Time
+          📊 All Time
         </button>
       </form>
     </div>
 
+    <!-- Monthly Summary -->
     {% if monthly_summary %}
-    <div class="monthly-overview">
-      <div class="overview-title">📊 Monthly Overview</div>
-      <div class="overview-list">
+    <div class="monthly-summary">
+      <div class="summary-title">📈 Monthly Overview</div>
+      <div class="summary-bars">
         {% for month, amount in monthly_summary.items() %}
-        <div class="overview-item">
-          <div class="overview-left">
-            <div class="overview-month">{{ format_month(month) }}</div>
-            <div class="overview-bar-bg">
-              <div class="overview-bar-fill" style="width: {% if monthly_summary.values()|max > 0 %}{{ ((amount / monthly_summary.values()|max) * 100)|round }}{% else %}0{% endif %}%"></div>
-            </div>
+        <div class="summary-item">
+          <div class="summary-month">{{ month }}</div>
+          <div class="summary-bar-bg">
+            <div class="summary-bar-fill" style="width: {% if monthly_summary.values()|max > 0 %}{{ ((amount / monthly_summary.values()|max) * 100)|round }}{% else %}0{% endif %}%"></div>
           </div>
-          <div class="overview-amount">₹{{ amount }}</div>
+          <div class="summary-amount">₹{{ amount }}</div>
         </div>
         {% endfor %}
       </div>
@@ -237,7 +238,7 @@
           <td>{{ expense.name }}</td>
           <td>₹{{ expense.amount }}</td>
           <td><span class="category-badge badge-{{ expense.category }}">{{ expense.category }}</span></td>
-          <td>{{ expense.date | format_date if expense.date else '' }}</td>
+          <td>{{ expense.date }}</td>
           <td>
             <div class="action-btns">
               <a href="/edit/{{ loop.index0 }}" class="btn-edit">✏️ Edit</a>

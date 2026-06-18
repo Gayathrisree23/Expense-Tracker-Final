@@ -2,4 +2,8 @@ name,amount,category,date
 Groceries,3500,Shopping,2026-05-23
 medicines,2000,Health,2026-05-23
 materials,6000,Other,2026-05-23
-food,2000,Food,2026-05-23
+medicines,2000,Health,2026-05-23
+ships,2500,Shopping,2026-06-18
+puffs,150,Food,2026-06-16
+veggies,200,Food,2026-06-16
+medicines,1500,Food,2026-06-16

@@ -27,14 +27,6 @@ def format_month(month_str):
 app.jinja_env.filters['format_date'] = format_date
 app.jinja_env.filters['format_month'] = format_month
 
-@app.template_filter('format_date')
-def format_date_filter(value):
-    return format_date(value)
-
-@app.template_filter('format_month')
-def format_month_filter(value):
-    return format_month(value)
-
 def get_file(username):
     return f'/tmp/expenses_{username}.csv'
 
@@ -113,7 +105,7 @@ def index():
     highest = max((float(e['amount']) for e in filtered_expenses), default=0)
     category_data = get_category_data(filtered_expenses)
     top_category = max(category_data, key=lambda k: category_data[k]['amount']) if filtered_expenses else 'None'
-    percent = min(round((total / budget) * 100), 100)
+    percent = min(round((total / budget) * 100), 100) if budget > 0 else 0
     remaining = budget - total
     balance_left = remaining
 
@@ -144,9 +136,7 @@ def index():
         selected_month=selected_month,
         current_month=current_month,
         view=view,
-        monthly_summary=monthly_summary,
-        format_date=format_date,
-        format_month=format_month
+        monthly_summary=monthly_summary
     )
 
 @app.route('/add', methods=['POST'])
@@ -162,7 +152,7 @@ def add():
     expense_date = entered_date if entered_date else str(date.today())
     file_exists = os.path.exists(FILE) and os.path.getsize(FILE) > 0
     with open(FILE, 'a', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['name','amount','category','date'])
+        writer = csv.DictWriter(f, fieldnames=['name', 'amount', 'category', 'date'])
         if not file_exists:
             writer.writeheader()
         writer.writerow({
@@ -179,31 +169,37 @@ def delete(index):
         return redirect('/')
     username = session['username']
     all_expenses = get_expenses(username)
-    if index < len(all_expenses):
+    if 0 <= index < len(all_expenses):
         all_expenses.pop(index)
     FILE = get_file(username)
     with open(FILE, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['name','amount','category','date'])
+        writer = csv.DictWriter(f, fieldnames=['name', 'amount', 'category', 'date'])
         writer.writeheader()
         writer.writerows(all_expenses)
     return redirect('/home')
 
-@app.route('/edit/<int:index>', methods=['GET','POST'])
+@app.route('/edit/<int:index>', methods=['GET', 'POST'])
 def edit(index):
     if 'username' not in session:
         return redirect('/')
     username = session['username']
     expenses = get_expenses(username)
     FILE = get_file(username)
+
+    if index < 0 or index >= len(expenses):
+        return redirect('/home')
+
     if request.method == 'POST':
         expenses[index]['name'] = request.form['name']
         expenses[index]['amount'] = request.form['amount']
         expenses[index]['category'] = request.form['category']
+        expenses[index]['date'] = request.form.get('date', expenses[index]['date'])
         with open(FILE, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['name','amount','category','date'])
+            writer = csv.DictWriter(f, fieldnames=['name', 'amount', 'category', 'date'])
             writer.writeheader()
             writer.writerows(expenses)
         return redirect('/home')
+
     return render_template('edit.html', expense=expenses[index], index=index)
 
 @app.route('/logout')
@@ -222,7 +218,7 @@ def export():
         for e in expenses:
             yield f"{e['name']},{e['amount']},{e['category']},{e['date']}\n"
     return Response(generate(), mimetype='text/csv',
-                   headers={'Content-Disposition': 'attachment;filename=expenses.csv'})
+                     headers={'Content-Disposition': 'attachment;filename=expenses.csv'})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
