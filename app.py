@@ -6,6 +6,11 @@ from datetime import date, datetime
 app = Flask(__name__)
 app.secret_key = 'expensetracker2026'
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+os.makedirs(DATA_DIR, exist_ok=True)
+
+
 def format_date(date_str):
     if not date_str:
         return ''
@@ -14,6 +19,7 @@ def format_date(date_str):
         return d.strftime('%d-%m-%Y')
     except:
         return date_str
+
 
 def format_month(month_str):
     if not month_str:
@@ -24,19 +30,32 @@ def format_month(month_str):
     except:
         return month_str
 
+
 app.jinja_env.filters['format_date'] = format_date
 app.jinja_env.filters['format_month'] = format_month
 
+
 def get_file(username):
-    return f'/tmp/expenses_{username}.csv'
+    safe_name = "".join(c for c in username if c.isalnum() or c in ('-', '_')).strip()
+    return os.path.join(DATA_DIR, f'expenses_{safe_name}.csv')
+
 
 def get_expenses(username):
     FILE = get_file(username)
     if not os.path.exists(FILE):
         return []
-    with open(FILE, 'r') as f:
+    with open(FILE, 'r', newline='') as f:
         reader = csv.DictReader(f)
         return list(reader)
+
+
+def save_expenses(username, expenses):
+    FILE = get_file(username)
+    with open(FILE, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['name', 'amount', 'category', 'date'])
+        writer.writeheader()
+        writer.writerows(expenses)
+
 
 def get_category_data(expenses):
     categories = {
@@ -47,11 +66,12 @@ def get_category_data(expenses):
         'Other': {'icon': '✨', 'amount': 0, 'count': 0},
     }
     for e in expenses:
-        cat = e['category']
+        cat = e.get('category', 'Other')
         if cat in categories:
             categories[cat]['amount'] += float(e['amount'])
             categories[cat]['count'] += 1
     return categories
+
 
 def get_months(expenses):
     months = set()
@@ -60,6 +80,7 @@ def get_months(expenses):
         if d and len(d) >= 7:
             months.add(d[:7])
     return sorted(months, reverse=True)
+
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -71,6 +92,7 @@ def login():
             session['budget'] = float(budget) if budget else 10000
             return redirect('/home')
     return render_template('login.html')
+
 
 @app.route('/home')
 def index():
@@ -97,9 +119,9 @@ def index():
 
     expenses = filtered_expenses
     if category_filter != 'All':
-        expenses = [e for e in expenses if e['category'] == category_filter]
+        expenses = [e for e in expenses if e.get('category') == category_filter]
     if search:
-        expenses = [e for e in expenses if search.lower() in e['name'].lower()]
+        expenses = [e for e in expenses if search.lower() in e.get('name', '').lower()]
 
     total = sum(float(e['amount']) for e in filtered_expenses)
     highest = max((float(e['amount']) for e in filtered_expenses), default=0)
@@ -114,12 +136,20 @@ def index():
         d = e.get('date', '')
         if d and len(d) >= 7:
             m = d[:7]
-            if m not in monthly_summary:
-                monthly_summary[m] = 0
-            monthly_summary[m] += float(e['amount'])
+            monthly_summary[m] = monthly_summary.get(m, 0) + float(e['amount'])
+
+    # Attach the REAL index from the full list so edit/delete always hit the
+    # correct row, even when a filter or search is narrowing what's shown.
+    indexed_expenses = []
+    for e in expenses:
+        try:
+            real_index = all_expenses.index(e)
+        except ValueError:
+            real_index = None
+        indexed_expenses.append({**e, '_index': real_index})
 
     return render_template('index.html',
-        expenses=expenses,
+        expenses=indexed_expenses,
         total=total,
         highest=highest,
         top_category=top_category,
@@ -139,44 +169,40 @@ def index():
         monthly_summary=monthly_summary
     )
 
+
 @app.route('/add', methods=['POST'])
 def add():
     if 'username' not in session:
         return redirect('/')
     username = session['username']
-    FILE = get_file(username)
     name = request.form['name']
     amount = request.form['amount']
     category = request.form['category']
     entered_date = request.form.get('date', '').strip()
     expense_date = entered_date if entered_date else str(date.today())
-    file_exists = os.path.exists(FILE) and os.path.getsize(FILE) > 0
-    with open(FILE, 'a', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['name', 'amount', 'category', 'date'])
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow({
-            'name': name,
-            'amount': amount,
-            'category': category,
-            'date': expense_date
-        })
+
+    expenses = get_expenses(username)
+    expenses.append({
+        'name': name,
+        'amount': amount,
+        'category': category,
+        'date': expense_date
+    })
+    save_expenses(username, expenses)
     return redirect('/home')
+
 
 @app.route('/delete/<int:index>')
 def delete(index):
     if 'username' not in session:
         return redirect('/')
     username = session['username']
-    all_expenses = get_expenses(username)
-    if 0 <= index < len(all_expenses):
-        all_expenses.pop(index)
-    FILE = get_file(username)
-    with open(FILE, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['name', 'amount', 'category', 'date'])
-        writer.writeheader()
-        writer.writerows(all_expenses)
+    expenses = get_expenses(username)
+    if 0 <= index < len(expenses):
+        expenses.pop(index)
+        save_expenses(username, expenses)
     return redirect('/home')
+
 
 @app.route('/edit/<int:index>', methods=['GET', 'POST'])
 def edit(index):
@@ -184,7 +210,6 @@ def edit(index):
         return redirect('/')
     username = session['username']
     expenses = get_expenses(username)
-    FILE = get_file(username)
 
     if index < 0 or index >= len(expenses):
         return redirect('/home')
@@ -193,19 +218,18 @@ def edit(index):
         expenses[index]['name'] = request.form['name']
         expenses[index]['amount'] = request.form['amount']
         expenses[index]['category'] = request.form['category']
-        expenses[index]['date'] = request.form.get('date', expenses[index]['date'])
-        with open(FILE, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['name', 'amount', 'category', 'date'])
-            writer.writeheader()
-            writer.writerows(expenses)
+        expenses[index]['date'] = request.form.get('date') or expenses[index]['date']
+        save_expenses(username, expenses)
         return redirect('/home')
 
     return render_template('edit.html', expense=expenses[index], index=index)
+
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect('/')
+
 
 @app.route('/export')
 def export():
@@ -213,12 +237,15 @@ def export():
         return redirect('/')
     username = session['username']
     expenses = get_expenses(username)
+
     def generate():
         yield 'name,amount,category,date\n'
         for e in expenses:
             yield f"{e['name']},{e['amount']},{e['category']},{e['date']}\n"
+
     return Response(generate(), mimetype='text/csv',
                      headers={'Content-Disposition': 'attachment;filename=expenses.csv'})
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
